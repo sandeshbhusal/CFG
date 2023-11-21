@@ -1,0 +1,6 @@
+5
+S->a_N_tells_a_N_O
+N->boy
+N->girl
+O->a_story
+O->that_S

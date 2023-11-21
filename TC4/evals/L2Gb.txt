@@ -1,0 +1,7 @@
+6
+S->aXbX
+X->aY
+X->bY
+X->!
+Y->X
+Y->c
