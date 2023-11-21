@@ -3,8 +3,17 @@ name = "tocp2"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "cfg"
+path = "src/lib.rs"
+
+[[bin]]
+name = "CFGDeriver"
+path = "src/main.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 anyhow = "1.0.75"
 clap = { version = "4.4.7", features = ["derive"] }
+itertools = "0.12.0"

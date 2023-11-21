@@ -1,11 +1,8 @@
-use anyhow::Result;
-use cfg::CFG;
-use clap::Parser;
+#![allow(non_snake_case)]
 
-mod parser;
-mod cfg;
-mod pda;
-mod cnf;
+use anyhow::Result;
+use clap::Parser;
+use cfg::cfg::CFG;
 
 #[derive(Debug, Parser)]
 struct Arguments {
