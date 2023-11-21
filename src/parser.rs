@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::cfg::{ProductionRule, Token, CFG};
+use crate::{cfg::CFG, productionrule::ProductionRule, token::Token};
 
 impl FromStr for CFG {
     type Err = anyhow::Error;

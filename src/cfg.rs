@@ -2,57 +2,7 @@
 
 use std::collections::HashMap;
 
-#[derive(Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Clone)]
-pub enum Token {
-    Terminal(String),
-    Variable(String),
-}
-
-impl Token {
-    fn is_variable(&self) -> bool {
-        matches!(self, Token::Variable(_))
-    }
-
-    fn is_terminal(&self) -> bool {
-        matches!(self, Token::Terminal(_))
-    }
-}
-
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub enum ProductionRule {
-    Sequence(Vec<Token>),
-    #[default]
-    Empty,
-}
-
-impl ProductionRule {
-    // Returns if the productionRule contains the given component (can be terminal/variable)
-    fn contains(&self, input: &Token) -> bool {
-        match self {
-            ProductionRule::Sequence(rules) => rules.contains(input),
-            ProductionRule::Empty => false,
-        }
-    }
-
-    // Check if a production rule is empty.
-    fn is_empty(&self) -> bool {
-        matches!(self, ProductionRule::Empty)
-    }
-
-    // Extract variables from a given rule.
-    fn get_variables(&self) -> Vec<Token> {
-        match self {
-            ProductionRule::Sequence(sequence) => sequence
-                .iter()
-                .filter_map(|t| t.is_variable().then_some(t.to_owned()))
-                .collect::<Vec<Token>>(),
-
-            ProductionRule::Empty => {
-                panic!("Cannot get variables from an empty production. BUG.")
-            }
-        }
-    }
-}
+use crate::{productionrule::ProductionRule, token::Token};
 
 #[derive(Debug, Default)]
 pub struct CFG {
