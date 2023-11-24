@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use cfg::cfg::CFG;
-    use cfg::cfg::Token;
+    use cfg::token::Token;
 
     #[test]
     fn filter_empty_productions() {
