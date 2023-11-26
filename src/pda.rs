@@ -1,7 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt::{Display, Write},
-    thread::current,
 };
 
 use crate::{cfg::CFG, token::Token};
@@ -39,13 +38,12 @@ struct PDA {
 
 impl From<CFG> for PDA {
     fn from(cfg: CFG) -> Self {
-        dbg!(&cfg);
-
         let mut pda = PDA::default();
 
         pda.stack.push(StackAlphabet::EOF);
 
         let default_state = 0;
+        pda.states.insert(default_state);
 
         let variables = cfg.variables.clone();
         let terminals = cfg.alphabet.clone();
@@ -63,29 +61,25 @@ impl From<CFG> for PDA {
         for variable in variables {
             // Read the variable off the stack, read nothing off the input string,
             // and read the transitions for the variable from the cfg.
-
-            let variable_state = pda.table.len() + 1;
-
-            pda.add_transition(
-                default_state,
-                StackAlphabet::Epsilon,
-                StackAlphabet::Symbol(variable.to_owned()),
-                StackAlphabet::Epsilon,
-                variable_state,
-            );
-
             if let Some(rules) = cfg.productions.get(&Token::Variable(variable.clone())) {
                 for rule in rules {
                     match rule {
                         crate::productionrule::ProductionRule::Sequence(sequence) => {
+                            let mut current_state = pda.get_new_state_id();
+                            pda.add_transition(
+                                default_state,
+                                StackAlphabet::Epsilon,
+                                StackAlphabet::Symbol(variable.clone()),
+                                StackAlphabet::Epsilon,
+                                current_state,
+                            );
+
                             let mut seq = sequence.clone();
                             seq.reverse();
 
-                            let mut current_state = variable_state;
-
                             for symb_index in 0..(seq.len() - 1) {
-                                let next_state = current_state + 1;
                                 let symb = seq[symb_index].clone();
+                                let next_state = pda.get_new_state_id();
 
                                 pda.add_transition(
                                     current_state,
@@ -109,9 +103,9 @@ impl From<CFG> for PDA {
                         }
                         crate::productionrule::ProductionRule::Empty => {
                             pda.add_transition(
-                                variable_state,
+                                default_state,
                                 StackAlphabet::Epsilon,
-                                StackAlphabet::Epsilon,
+                                StackAlphabet::Symbol(variable.clone()),
                                 StackAlphabet::Epsilon,
                                 default_state,
                             );
@@ -120,22 +114,23 @@ impl From<CFG> for PDA {
                 }
             } else {
                 println!(
-                    "The varible {} does not have any production rules!",
+                    "The variable {} does not have any production rules!",
                     variable
                 );
             }
         }
 
         pda.start_state = 0;
+        let final_state = pda.get_new_state_id();
         pda.add_transition(
             0,
             StackAlphabet::Epsilon,
             StackAlphabet::EOF,
             StackAlphabet::Epsilon,
-            pda.table.len() + 1,
+            final_state,
         );
 
-        pda.final_state = pda.table.len() + 1;
+        pda.final_state = final_state;
 
         pda
     }
@@ -155,6 +150,13 @@ impl PDA {
         let transitions_entry = transitions.entry((read_string, stack_top)).or_default();
         transitions_entry.push((stack_write, to_state));
     }
+
+    fn get_new_state_id(&mut self) -> PDAState {
+        let new_state_id = self.states.len();
+        self.states.insert(new_state_id);
+
+        new_state_id
+    }
 }
 
 impl Display for PDA {
@@ -162,6 +164,8 @@ impl Display for PDA {
         let _ = {
             f.write_str("Pushdown Automata Description:\n")?;
             f.write_fmt(format_args!("States: {:?}\n", self.states))?;
+            f.write_fmt(format_args!("Start state: {:?}\n", self.start_state))?;
+            f.write_fmt(format_args!("Final state: {:?}\n", self.final_state))?;
 
             for entry in self.table.clone() {
                 f.write_fmt(format_args!("State: {}\n", entry.0))?;
@@ -178,20 +182,4 @@ impl Display for PDA {
 
         Ok(())
     }
-}
-
-#[test]
-fn quick_print_pda() {
-    let cfg = r#"
-    0
-    S->aBc
-    S->ab
-    B->SB
-    B->!
-    "#
-    .parse::<CFG>()
-    .unwrap();
-
-    let pda: PDA = cfg.into();
-    println!("{}", pda);
 }
