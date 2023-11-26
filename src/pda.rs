@@ -6,7 +6,7 @@ use std::{
 use crate::{cfg::CFG, token::Token};
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
-enum StackAlphabet {
+pub(crate) enum StackAlphabet {
     #[default]
     Epsilon,
     Symbol(Alphabet),
@@ -23,16 +23,16 @@ impl Display for StackAlphabet {
     }
 }
 
-type Alphabet = String;
-type PDAState = usize;
+pub(crate) type Alphabet = String;
+pub(crate) type PDAState = usize;
 
-#[derive(Debug, Default)]
-struct PDA {
-    stack: Vec<StackAlphabet>,
-    states: HashSet<PDAState>,
-    start_state: PDAState,
-    final_state: PDAState,
-    table:
+#[derive(Debug, Default, Clone)]
+pub struct PDA {
+    pub(crate) stack: Vec<StackAlphabet>,
+    pub(crate) states: HashSet<PDAState>,
+    pub(crate) start_state: PDAState,
+    pub(crate) final_state: PDAState,
+    pub(crate) table:
         HashMap<PDAState, HashMap<(StackAlphabet, StackAlphabet), Vec<(StackAlphabet, PDAState)>>>,
 }
 
@@ -41,6 +41,7 @@ impl From<CFG> for PDA {
         let mut pda = PDA::default();
 
         pda.stack.push(StackAlphabet::EOF);
+        pda.stack.push(StackAlphabet::Symbol("S".into()));
 
         let default_state = 0;
         pda.states.insert(default_state);
@@ -59,13 +60,11 @@ impl From<CFG> for PDA {
         }
 
         for variable in variables {
-            // Read the variable off the stack, read nothing off the input string,
-            // and read the transitions for the variable from the cfg.
             if let Some(rules) = cfg.productions.get(&Token::Variable(variable.clone())) {
                 for rule in rules {
                     match rule {
                         crate::productionrule::ProductionRule::Sequence(sequence) => {
-                            let mut current_state = pda.get_new_state_id();
+                            let mut current_state = pda.gen_new_state_id();
                             pda.add_transition(
                                 default_state,
                                 StackAlphabet::Epsilon,
@@ -79,7 +78,7 @@ impl From<CFG> for PDA {
 
                             for symb_index in 0..(seq.len() - 1) {
                                 let symb = seq[symb_index].clone();
-                                let next_state = pda.get_new_state_id();
+                                let next_state = pda.gen_new_state_id();
 
                                 pda.add_transition(
                                     current_state,
@@ -113,7 +112,7 @@ impl From<CFG> for PDA {
                     }
                 }
             } else {
-                println!(
+                log::warn!(
                     "The variable {} does not have any production rules!",
                     variable
                 );
@@ -121,7 +120,7 @@ impl From<CFG> for PDA {
         }
 
         pda.start_state = 0;
-        let final_state = pda.get_new_state_id();
+        let final_state = pda.gen_new_state_id();
         pda.add_transition(
             0,
             StackAlphabet::Epsilon,
@@ -151,11 +150,38 @@ impl PDA {
         transitions_entry.push((stack_write, to_state));
     }
 
-    fn get_new_state_id(&mut self) -> PDAState {
+    fn gen_new_state_id(&mut self) -> PDAState {
         let new_state_id = self.states.len();
         self.states.insert(new_state_id);
 
         new_state_id
+    }
+
+    pub(crate) fn ep_closure(&self, state: PDAState) -> Vec<PDAState> {
+        let mut rval = HashSet::new();
+
+        rval.insert(state);
+        let mut stack = vec![state];
+
+        while let Some(state) = stack.pop() {
+            if let Some(transitions) = self.table.get(&state) {
+                // There are some transitions for this state. Check if any of them have
+                // ep-read and ep-tos.
+                if let Some(possible) =
+                    transitions.get(&(StackAlphabet::Epsilon, StackAlphabet::Epsilon))
+                {
+                    let states = possible.iter().map(|t| t.1).collect::<Vec<_>>();
+                    for state in states {
+                        if !rval.contains(&state) {
+                            stack.push(state);
+                            rval.insert(state);
+                        }
+                    }
+                }
+            }
+        }
+
+        rval.into_iter().collect::<Vec<PDAState>>()
     }
 }
 
