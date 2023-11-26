@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{str::FromStr, collections::HashSet};
 
 use crate::{cfg::CFG, productionrule::ProductionRule, token::Token};
 
@@ -7,6 +7,10 @@ impl FromStr for CFG {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut rval: CFG = Default::default();
+
+        let mut variables: HashSet<String> = HashSet::default();
+        let mut alphabet: HashSet<String> = HashSet::default();
+
         // Parse the string into lines, and while it starts
         // with an uppercase symbol, generate a "production".
         s.lines().for_each(|line| {
@@ -14,6 +18,9 @@ impl FromStr for CFG {
             if line.starts_with(|t: char| t.is_ascii_uppercase()) {
                 let mut split = line.split("->");
                 let variable = split.next().expect("Variable expected.").to_owned();
+
+                variables.insert(variable.clone());
+
                 let produces = split.next().expect("Production expected.").to_owned();
 
                 let entry = rval
@@ -27,30 +34,23 @@ impl FromStr for CFG {
                 }
 
                 // Loop through the rhs and split it into terminals and variables.
-                let mut accum: String = String::new();
                 let mut sequence: Vec<Token> = Vec::new();
 
                 for t in produces.chars() {
                     if t.is_ascii_uppercase() {
-                        // Dump the accumulator.
-                        if accum.len() > 0 {
-                            let accumulated = Token::Terminal(accum.clone());
-                            sequence.push(accumulated);
-                        }
                         sequence.push(Token::Variable(t.to_string()));
-                        accum.clear();
                     } else {
-                        accum.push(t);
+                        alphabet.insert(t.to_string());
+                        sequence.push(Token::Terminal(t.to_string()));
                     }
-                }
-
-                if !accum.is_empty() {
-                    sequence.push(Token::Terminal(accum));
                 }
 
                 (entry).push(ProductionRule::Sequence(sequence));
             }
         });
+
+        rval.alphabet = alphabet.into_iter().collect::<Vec<_>>();
+        rval.variables = variables.into_iter().collect::<Vec<_>>();
 
         Ok(rval)
     }

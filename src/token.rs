@@ -29,4 +29,11 @@ impl Token {
     pub fn is_terminal(&self) -> bool {
         matches!(self, Token::Terminal(_))
     }
+
+    pub fn get_inner(&self) -> String { 
+        match self {
+            Token::Terminal(s) => s.clone(),
+            Token::Variable(s) => s.clone(),
+        }
+    }
 }

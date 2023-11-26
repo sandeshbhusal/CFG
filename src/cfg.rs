@@ -2,15 +2,31 @@
 
 use std::collections::HashMap;
 
+use boilermates::boilermates;
+
 use crate::{productionrule::ProductionRule, token::Token};
 
 #[derive(Debug, Default)]
 pub struct CFG {
     pub productions: HashMap<Token, Vec<ProductionRule>>,
-    pub dependency_graph: HashMap<Token, Vec<Token>>,
+    pub inverted_dep_graph: HashMap<Token, Vec<Token>>,
+    pub alphabet: Vec<String>,
+    pub variables: Vec<String>
 }
 
 impl CFG {
+    /// Update the dependency graph for this CFG.
+    pub(crate) fn update_dependency_graph(&mut self) {
+
+    }
+
+    /// Prune off the rules in the CFG with the following conditions:
+    ///
+    /// 1. All rules that are unreachble from other rules.
+    /// 2. All rules that produce only Epsilon.
+    /// 3. All rules that have a production with (2)
+    pub fn prune_rules(&mut self) {}
+
     pub fn variables_with_empty_productions(&self) -> Vec<Token> {
         // Find all variables of form A -> e | ..
         self.productions
@@ -48,48 +64,33 @@ impl CFG {
         });
 
         // Now for every variable in the epsilon_variables, check if it appears
-        // in the production rules. If it does, then replace it with its alternatives
-        // in the rule.
-        // E.g. If A -> ! | ab, B -> aA, new rule is B -> a | aab
+        // in the production rules.
+        // E.g. If A -> ! | ab, B -> aA, new rule is B -> a | aA
+        let mut new_productions: HashMap<Token, Vec<ProductionRule>> = HashMap::default();
         for epsilon_variable in epsilon_variables {
-            for (variable, production_rules) in rules.iter() {
+
+            for (variable, production_rules) in rules.iter_mut() {
                 // Prevent a loop like A -> ! | aA.
                 if variable == &epsilon_variable {
                     return;
                 }
 
+                let mut new_rules = production_rules.clone();
+
                 for rule in production_rules {
                     if rule.contains(&epsilon_variable) {
-                        log::info!("The variable {} contains an epsilon variable {} in rule {}", variable, epsilon_variable, rule);
-
-                        rule.replace_variable(
-                            epsilon_variable.to_owned(),
-                            rules.get(&epsilon_variable).unwrap().to_owned(),
-                        );
+                        // println!("The variable {} contains an epsilon variable {} in rule {}", variable, epsilon_variable, rule);
+                        new_rules
+                            .extend(rule.replace_nullable_variable(epsilon_variable.to_owned()));
+                    } else {
+                        new_rules.push(rule.clone());
                     }
                 }
+
+                new_productions.insert(variable.to_owned(), new_rules);
             }
         }
 
-        // Done.
-        dbg!(&rules);
+        self.productions = new_productions;
     }
-}
-
-#[test]
-fn quick_test() {
-    let mut cfg = r#"
-        0
-        S->Acd
-        S->kAd
-        S->!
-        A->c
-        A->d
-        A->!
-        A->aA
-    "#
-    .parse::<CFG>()
-    .unwrap();
-
-    cfg.remove_empty_productions();
 }

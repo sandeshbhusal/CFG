@@ -54,70 +54,37 @@ impl ProductionRule {
         }
     }
 
-    /// Replace a variable in the production rule with available terminals to generate a list of production rules.
-    pub fn replace_variable(
-        &self,
-        epsilon_variable: Token,
-        terminals: Vec<ProductionRule>,
-    ) -> Vec<Self> {
+    /// Replaces a variable in the given rule, with epsilon
+    pub fn replace_nullable_variable(&self, epsilon_variable: Token) -> Vec<Self> {
+        let mut new_rules = vec![];
+
         log::debug!(
             "Going to replace variable {} in rule {} ",
             epsilon_variable,
             self
         );
-        let mut new_rules = vec![];
+        new_rules.push(self.clone());
 
-        let mut this_rule = self.clone();
-        this_rule.remove_variable(&epsilon_variable);
-        new_rules.push(this_rule);
+        let mut stack = vec![self.clone()];
 
-        let mut stack = vec![];
-        stack.push(self.clone());
         while let Some(rule) = stack.pop() {
-            dbg!("Working on rule:", &rule);
-            // Check if rule does not contain the variable, if so, it can be sent back.
-            // else, it needs further processing and replacement.
-            if let ProductionRule::Sequence(rule) = rule {
-                if rule.contains(&epsilon_variable) {
-                    // Process this rule.
-                    // Replace the first occurrence with "terminals" vector.
-                    // E.g. for A -> kAdA, it splits the rule as k + A + dA, replaces the first "A"
-                    // and pushes it onto the stack.
-                    let mut split = rule.split(|r| r == &epsilon_variable);
-                    let left = split.next().unwrap();
-                    let right = split.next().unwrap();
+            if rule.contains(&epsilon_variable) {
+                if let ProductionRule::Sequence(rule) = rule {
+                    // Generate a new rule excluding the variable and push it to stack + list.
+                    let mut split = rule.split(|t| t == &epsilon_variable);
+                    let mut first = split.next().expect("Cannot happen. BUG.").to_vec();
+                    let second = split.next().expect("Cannot happen. BUG.").to_vec();
+                    first.extend(second);
 
-                    // Generate more rules with the sequence.
-                    for terminal in terminals.clone() {
-                        if let ProductionRule::Sequence(seq) = terminal {
-                            let mut new_sequence = vec![];
-                            new_sequence.extend(left.to_vec());
-                            new_sequence.extend(seq);
-                            new_sequence.extend(right.to_vec());
-
-                            // TODO: Check if this works. So far, I'm just adding it to the stack.
-                            // and not to the final rules list. This might be a blunder.
-                            // test with:
-                            /*
-                                A -> c | d | !
-                                B -> kAlA
-
-                                Then, B should have:
-                                B -> kl | kAl | klA
-                                A should have:
-                                A -> c | d
-                            */
-                            stack.push(ProductionRule::Sequence(new_sequence));
-                        } else {
-                            panic!("The epsilon must be wiped out.")
-                        }
+                    if first.len() > 0 {
+                        println!("Generated a new; from: {} to: {:?}", self.clone(), first.clone());
+                        let new_rule = ProductionRule::Sequence(first);
+                        stack.push(new_rule.clone());
+                        new_rules.push(new_rule);
                     }
                 } else {
-                    // Retain this rule.
-                    new_rules.push(ProductionRule::Sequence(rule));
+                    panic!("Cannot happen. BUG.")
                 }
-            } else {
-                panic!("Cannot be called for an epsilon rule. BUG.");
             }
         }
 
