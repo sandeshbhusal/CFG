@@ -1,5 +1,3 @@
-use log::debug;
-
 use crate::pda::{PDAState, StackAlphabet, PDA};
 
 #[derive(Debug, Clone)]
@@ -30,75 +28,43 @@ impl<'a> PDAInstance<'a> {
         log::trace!("Running a copy");
         let mut copy = self.clone();
 
-        match (read, pop.clone()) {
-            (StackAlphabet::Epsilon, StackAlphabet::Epsilon) => {
-                // If nothing to read or pop, just push if required.
-                if matches!(push, StackAlphabet::Symbol(_)) {
-                    log::debug!("push {}", push);
-                    copy.pda.stack.push(push);
-                }
-            }
-
-            (StackAlphabet::Epsilon, StackAlphabet::Symbol(k)) => {
-                // If nothing to read, but something to pop, pop it first
-                // if the stack top matches. Then proceed to push to stack if required (this condition can never happen).
-                if copy.pda.get_stack_top() == StackAlphabet::Symbol(k) {
-                    log::debug!("pop {}", &pop);
-                    if let Some(StackAlphabet::Symbol(popped)) = copy.pda.stack.pop() {
-                        if popped.chars().next().unwrap().is_ascii_uppercase() {
-                            copy.bound -= 1;
-                            log::debug!("expand {}.", popped);
-                        }
-                    }
-
-                    if push != StackAlphabet::Epsilon {
-                        panic!("This condition can never happen. pop + push");
-                    }
-                } else {
-                    // Pop requested, but stack does not match required pop.
-                    return false;
-                }
-            }
-
-            (StackAlphabet::Epsilon, StackAlphabet::EOF) => {
-                // If nothing to read, but we need to pop off the stacktop
-                if copy.pda.get_stack_top() == StackAlphabet::EOF {
-                    log::debug!("pop eof {}", &pop);
+        // Pop before push
+        if let StackAlphabet::Symbol(s) = pop.clone() {
+            if StackAlphabet::Symbol(s.clone()) == copy.pda.get_stack_top() {
+                if s.chars().next().unwrap().is_ascii_uppercase() {
+                    // Popping variable.
                     copy.pda.stack.pop();
-
-                    if push != StackAlphabet::Epsilon {
-                        panic!("This condition can never happen. pop + push");
-                    }
                 } else {
-                    // Pop requested, but stack does not match required pop.
-                    return false;
-                }
-            }
-
-            (StackAlphabet::Symbol(read_string), StackAlphabet::Symbol(pop_string)) => {
-                // If something to read, make sure that the stack top matches
-                // and pop it as well for our special PDA.
-                if copy.input_string.len() == 0 {
-                    return false;
-                }
-
-                let input_first_char = copy.input_string.chars().next().expect("Expected some chars").to_string();
-
-                if copy.pda.get_stack_top() == StackAlphabet::Symbol(pop_string.clone()) && input_first_char == read_string {
-                    // Pop it.
+                    // Popping terminal.
+                    // Cannot pop terminal without read as well
+                    // All transitions with pop terminal should have read
+                    // as well.
                     copy.pda.stack.pop();
-                    debug!("pop {}", pop_string);
-                    // Move input ptr to right.
-                    debug!("read {}", read_string);
-                    copy.input_string = &copy.input_string[1..];
-                } else {
-                    // Pop requested, but stack top does not match.
-                    return false;
+                    if copy.input_string.len() == 0 {
+                        return false;
+                    }
+                    if StackAlphabet::Symbol(copy.input_string.chars().next().unwrap().to_string())
+                        == read
+                    {
+                        copy.input_string = &copy.input_string[1..];
+                    } else {
+                        return false;
+                    }
                 }
+            } else {
+                return false;
             }
+        }
 
-            _ => panic!("Cannot happen."),
-        };
+        // Push if there's anything to push.
+        if let StackAlphabet::Symbol(_) = push.clone() {
+            copy.pda.stack.push(push);
+        }
+
+        // Pop epsilon if it should be popped.
+        if StackAlphabet::EOF == pop {
+            copy.pda.stack.pop();
+        }
 
         copy.current_state = current_state;
         return copy.trace();
@@ -126,12 +92,11 @@ impl<'a> PDAInstance<'a> {
             // Check what are the reachable states from the current state
             if let Some(transitions_here) = self.pda.table.get(&self.current_state) {
                 // follow each transition.
-                for ((read_char, need_stack_top), possible_next) in transitions_here.iter() {
-                    // We can trivially check this without reading string or popping from stack.
+                for ((read_char, pop_from_stack), possible_next) in transitions_here.iter() {
                     for (push_to_stack, next_state) in possible_next.iter() {
                         if self.run_copy(
                             push_to_stack.to_owned(),
-                            need_stack_top.clone(),
+                            pop_from_stack.clone(),
                             read_char.clone(),
                             *next_state,
                         ) {

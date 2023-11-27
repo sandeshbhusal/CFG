@@ -34,11 +34,19 @@ fn main() -> Result<()> {
     // Replace all "!" with blanks.
     let input_string = input_string.replace("!", "");
 
+    // TODO: Calculate the value of bound we have to parse within.
+
     let cfg = cfg_def.parse::<CFG>().unwrap();
 
     let pda = PDA::from(cfg);
+    // println!("{}", pda);
     let mut tracer = trace::PDAInstance::with_pda(pda, &input_string, 100);
     let ans = tracer.trace();
-    println!("{}", ans);
+
+    if ans {
+        println!("yes");
+    } else {
+        println!("no");
+    }
     Ok(())
 }
