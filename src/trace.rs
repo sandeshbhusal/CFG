@@ -88,15 +88,14 @@ impl<'a> PDAConfiguration<'a> {
 
     pub fn trace(&mut self) -> bool {
         // Check bound, base case.
-        if self.bound <= 0
-            || (self.input.len() == 0
+        if self.bound <= 0 {
+            // Check input should be EOF.
+            if self.input.len() == 0
                 && self
                     .pda
                     .ep_reachable(self.state)
-                    .contains(&self.pda.final_state))
-        {
-            // Check input should be EOF.
-            if self.input.len() == 0 {
+                    .contains(&self.pda.final_state)
+            {
                 log::trace!("Input string finished. In final state (or reachable)");
                 true
             } else {
