@@ -30,17 +30,13 @@ fn main() -> Result<()> {
     let args = Arguments::parse();
     let cfg_def = std::fs::read_to_string(args.cfg_file)?;
     let input_string = std::fs::read_to_string(args.str_file)?;
+
+    // Replace all "!" with blanks.
+    let input_string = input_string.replace("!", "");
+
     let cfg = cfg_def.parse::<CFG>().unwrap();
-    // let cfg = r#"
-    //     1
-    //     S->aSb
-    //     S->!
-    // "#
-    // .parse::<CFG>()
-    // .unwrap();
 
     let pda = PDA::from(cfg);
-    // println!("{}", pda);
     let mut tracer = trace::PDAInstance::with_pda(pda, &input_string, 100);
     let ans = tracer.trace();
     println!("{}", ans);
