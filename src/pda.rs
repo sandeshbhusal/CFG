@@ -157,7 +157,11 @@ impl PDA {
         new_state_id
     }
 
-    pub(crate) fn ep_closure(&self, state: PDAState) -> Vec<PDAState> {
+    pub(crate) fn get_stack_top(&self) -> StackAlphabet {
+        return self.stack[self.stack.len() - 1].clone();
+    }
+
+    pub(crate) fn ep_reachable(&self, state: PDAState) -> Vec<PDAState> {
         let mut rval = HashSet::new();
 
         rval.insert(state);
@@ -191,7 +195,7 @@ impl Display for PDA {
             f.write_str("Pushdown Automata Description:\n")?;
             f.write_fmt(format_args!("States: {:?}\n", self.states))?;
             f.write_fmt(format_args!("Start state: {:?}\n", self.start_state))?;
-            f.write_fmt(format_args!("Final state: {:?}\n", self.final_state))?;
+            f.write_fmt(format_args!("Final state: {:?}\n\n", self.final_state))?;
 
             for entry in self.table.clone() {
                 f.write_fmt(format_args!("State: {}\n", entry.0))?;

@@ -25,11 +25,13 @@ struct Arguments {
 }
 
 fn main() -> Result<()> {
+    env_logger::init();
+
     // let args = Arguments::parse();
     // let cfg_def = std::fs::read_to_string(args.cfg_file).unwrap();
     // let cfg = cfg_def.parse::<CFG>().unwrap();
     let cfg = r#"
-        2
+        1
         S->aSb
         S->!
     "#
@@ -37,8 +39,9 @@ fn main() -> Result<()> {
     .unwrap();
 
     let pda = PDA::from(cfg);
-
-    let mut tracer = trace::PDAInstance::with_pda(pda, "aaabbb", 100);
-    tracer.trace();
+    println!("{}", pda);
+    let mut tracer = trace::PDAInstance::with_pda(pda, "b", 100);
+    let ans = tracer.trace();
+    println!("{}", ans);
     Ok(())
 }
