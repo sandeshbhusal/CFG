@@ -28,62 +28,68 @@ impl<'a> PDAInstance<'a> {
         log::trace!("Running a copy");
         let mut copy = self.clone();
 
-        // Check if the stack top corresponds to the given pop
-        if pop != StackAlphabet::Epsilon {
-            if copy.pda.get_stack_top() == pop {
-                if let Some(StackAlphabet::Symbol(stack_top_symbol)) = copy.pda.stack.pop() {
-                    if stack_top_symbol
-                        .chars()
-                        .next()
-                        .expect("Expected something on stack")
-                        .is_ascii_uppercase()
-                    {
-                        log::debug!("pop {}", pop);
-                        log::debug!("Expanded a variable.");
-                        copy.bound = self.bound - 1;
-                    }
+        match (read, pop.clone()) {
+            (StackAlphabet::Epsilon, StackAlphabet::Epsilon) => {
+                // If nothing to read or pop, just push if required.
+                if matches!(push, StackAlphabet::Symbol(_)) {
+                    log::debug!("push {}", push);
+                    copy.pda.stack.push(push);
                 }
-            } else {
-                log::trace!(
-                    "Need stack top as {} but found stack top as {}. Returning FALSE.",
-                    pop,
-                    copy.pda.get_stack_top()
-                );
-                return false;
             }
-        }
 
-        if push != StackAlphabet::EOF && push != StackAlphabet::Epsilon {
-            log::debug!("push {}", push);
-            copy.pda.stack.push(push);
-        }
+            (StackAlphabet::Epsilon, StackAlphabet::Symbol(k)) => {
+                // If nothing to read, but something to pop, pop it first
+                // if the stack top matches. Then proceed to push to stack if required (this condition can never happen).
+                if copy.pda.get_stack_top() == StackAlphabet::Symbol(k) {
+                    log::debug!("pop {}", &pop);
+                    copy.pda.stack.pop();
 
-        if read != StackAlphabet::Epsilon {
-            if copy.input_string.len() == 0 {
-                log::trace!("No input string to read. Returning false");
-                // Cannot read anything from the input, but we wanted to read something.
-                return false;
-            } else {
-                let start_char = copy
-                    .input_string
-                    .chars()
-                    .next()
-                    .expect("Expected something")
-                    .to_string();
-
-                if let StackAlphabet::Symbol(want_read) = read {
-                    if start_char == want_read {
-                        // lop off the start char in the input.
-                        copy.input_string = &copy.input_string[1..];
+                    if push != StackAlphabet::Epsilon {
+                        panic!("This condition can never happen. pop + push");
                     }
                 } else {
-                    log::trace!("Wanted to read something, checked it. It was not epsilon, but no chars found?");
+                    // Pop requested, but stack does not match required pop.
                     return false;
                 }
             }
-        } else {
-            log::trace!("Read epsilon.");
-        }
+
+            (StackAlphabet::Epsilon, StackAlphabet::EOF) => {
+                // If nothing to read, but we need to pop off the stacktop
+                if copy.pda.get_stack_top() == StackAlphabet::EOF {
+                    log::debug!("pop eof {}", &pop);
+                    copy.pda.stack.pop();
+
+                    if push != StackAlphabet::Epsilon {
+                        panic!("This condition can never happen. pop + push");
+                    }
+                } else {
+                    // Pop requested, but stack does not match required pop.
+                    return false;
+                }
+            }
+
+            (StackAlphabet::Symbol(read_string), StackAlphabet::Symbol(pop_string)) => {
+                // If something to read, make sure that the stack top matches
+                // and pop it as well for our special PDA.
+                if copy.input_string.len() == 0 {
+                    return false;
+                }
+
+                let input_first_char = copy.input_string.chars().next().expect("Expected some chars").to_string();
+
+                if copy.pda.get_stack_top() == StackAlphabet::Symbol(pop_string) && input_first_char == read_string {
+                    // Pop it.
+                    copy.pda.stack.pop();
+                    // Move input ptr to right.
+                    copy.input_string = &copy.input_string[1..];
+                } else {
+                    // Pop requested, but stack top does not match.
+                    return false;
+                }
+            }
+
+            _ => panic!("Cannot happen."),
+        };
 
         copy.current_state = current_state;
         return copy.trace();
