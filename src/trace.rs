@@ -1,3 +1,5 @@
+use log::debug;
+
 use crate::pda::{PDAState, StackAlphabet, PDA};
 
 #[derive(Debug, Clone)]
@@ -42,7 +44,12 @@ impl<'a> PDAInstance<'a> {
                 // if the stack top matches. Then proceed to push to stack if required (this condition can never happen).
                 if copy.pda.get_stack_top() == StackAlphabet::Symbol(k) {
                     log::debug!("pop {}", &pop);
-                    copy.pda.stack.pop();
+                    if let Some(StackAlphabet::Symbol(popped)) = copy.pda.stack.pop() {
+                        if popped.chars().next().unwrap().is_ascii_uppercase() {
+                            copy.bound -= 1;
+                            log::debug!("expand {}.", popped);
+                        }
+                    }
 
                     if push != StackAlphabet::Epsilon {
                         panic!("This condition can never happen. pop + push");
@@ -77,10 +84,12 @@ impl<'a> PDAInstance<'a> {
 
                 let input_first_char = copy.input_string.chars().next().expect("Expected some chars").to_string();
 
-                if copy.pda.get_stack_top() == StackAlphabet::Symbol(pop_string) && input_first_char == read_string {
+                if copy.pda.get_stack_top() == StackAlphabet::Symbol(pop_string.clone()) && input_first_char == read_string {
                     // Pop it.
                     copy.pda.stack.pop();
+                    debug!("pop {}", pop_string);
                     // Move input ptr to right.
+                    debug!("read {}", read_string);
                     copy.input_string = &copy.input_string[1..];
                 } else {
                     // Pop requested, but stack top does not match.
