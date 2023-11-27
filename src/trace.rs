@@ -1,20 +1,25 @@
-use crate::pda::{PDAState, StackAlphabet, PDA};
+use crate::{
+    pda::{PDAState, StackAlphabet, PDA},
+    token::Token,
+};
 
-#[derive(Debug, Clone)]
-pub struct PDAInstance<'a> {
+#[derive(Debug, Clone, Default)]
+pub struct PDAConfiguration<'a> {
     pda: PDA,
-    current_state: PDAState,
-    input_string: &'a str,
+    state: PDAState,
+    input: &'a str,
     bound: usize,
+    produced: String,
 }
 
-impl<'a> PDAInstance<'a> {
-    pub fn with_pda(pda: PDA, input_string: &'a str, bound: usize) -> Self {
+impl<'a> PDAConfiguration<'a> {
+    pub fn with_pda(pda: PDA, input_string: &'a str, bound: usize, produced: String) -> Self {
         Self {
             pda: pda.clone(),
-            current_state: pda.start_state,
-            input_string,
+            state: pda.start_state,
+            input: input_string,
             bound,
+            produced,
         }
     }
 
@@ -25,30 +30,41 @@ impl<'a> PDAInstance<'a> {
         read: StackAlphabet,
         current_state: PDAState,
     ) -> bool {
-        log::trace!("Running a copy");
-        let mut copy = self.clone();
+        let mut copy = PDAConfiguration::with_pda(
+            self.pda.clone(),
+            self.input,
+            self.bound,
+            self.produced.clone(),
+        );
 
         // Pop before push
         if let StackAlphabet::Symbol(s) = pop.clone() {
             if StackAlphabet::Symbol(s.clone()) == copy.pda.get_stack_top() {
-                if s.chars().next().unwrap().is_ascii_uppercase() {
-                    // Popping variable.
-                    copy.pda.stack.pop();
-                } else {
-                    // Popping terminal.
-                    // Cannot pop terminal without read as well
-                    // All transitions with pop terminal should have read
-                    // as well.
-                    copy.pda.stack.pop();
-                    if copy.input_string.len() == 0 {
-                        return false;
+                match s {
+                    crate::token::Token::Terminal(_) => {
+                        // Pop the terminal from the input string as well as top of stack.
+                        copy.pda.stack.pop();
+                        // Make sure there is input string to be read here.
+                        if copy.input.len() == 0 {
+                            return false;
+                        }
+                        // Make sure we read what was required to be read.
+                        if read == StackAlphabet::Symbol(Token::Terminal((&copy.input[..1]).into()))
+                        {
+                            copy.produced +=
+                                copy.input.chars().next().unwrap().to_string().as_str();
+                            copy.input = &copy.input[1..];
+                        } else {
+                            // Read string does not match the transition read symbol.
+                            return false;
+                        }
                     }
-                    if StackAlphabet::Symbol(copy.input_string.chars().next().unwrap().to_string())
-                        == read
-                    {
-                        copy.input_string = &copy.input_string[1..];
-                    } else {
-                        return false;
+                    crate::token::Token::Variable(_) => {
+                        // Pop the variable from the top of stack.
+                        println!("{}", copy.produced.clone());
+                        copy.pda.stack.pop();
+                        // Copy derived a variable at this point. Bound is decremented.
+                        copy.bound -= 1;
                     }
                 }
             } else {
@@ -66,21 +82,21 @@ impl<'a> PDAInstance<'a> {
             copy.pda.stack.pop();
         }
 
-        copy.current_state = current_state;
+        copy.state = current_state;
         return copy.trace();
     }
 
     pub fn trace(&mut self) -> bool {
         // Check bound, base case.
-        if self.bound == 0
-            || (self.input_string.len() == 0
+        if self.bound <= 0
+            || (self.input.len() == 0
                 && self
                     .pda
-                    .ep_reachable(self.current_state)
+                    .ep_reachable(self.state)
                     .contains(&self.pda.final_state))
         {
             // Check input should be EOF.
-            if self.input_string.len() == 0 {
+            if self.input.len() == 0 {
                 log::trace!("Input string finished. In final state (or reachable)");
                 true
             } else {
@@ -90,7 +106,7 @@ impl<'a> PDAInstance<'a> {
         } else {
             // Trace this input.
             // Check what are the reachable states from the current state
-            if let Some(transitions_here) = self.pda.table.get(&self.current_state) {
+            if let Some(transitions_here) = self.pda.table.get(&self.state) {
                 // follow each transition.
                 for ((read_char, pop_from_stack), possible_next) in transitions_here.iter() {
                     for (push_to_stack, next_state) in possible_next.iter() {
@@ -109,9 +125,9 @@ impl<'a> PDAInstance<'a> {
             } else {
                 // No more transitions on this state. Check if final reachable, otherwise, return false.
                 self.pda
-                    .ep_reachable(self.current_state)
+                    .ep_reachable(self.state)
                     .contains(&self.pda.final_state)
-                    && self.input_string.len() == 0
+                    && self.input.len() == 0
             }
         }
     }

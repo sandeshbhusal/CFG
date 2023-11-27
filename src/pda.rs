@@ -9,7 +9,7 @@ use crate::{cfg::CFG, token::Token};
 pub(crate) enum StackAlphabet {
     #[default]
     Epsilon,
-    Symbol(Alphabet),
+    Symbol(Token),
     EOF,
 }
 
@@ -17,13 +17,12 @@ impl Display for StackAlphabet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             StackAlphabet::Epsilon => f.write_char('e'),
-            StackAlphabet::Symbol(s) => f.write_str(s),
+            StackAlphabet::Symbol(s) => f.write_str(&s.get_inner()),
             StackAlphabet::EOF => f.write_char('$'),
         }
     }
 }
 
-pub(crate) type Alphabet = String;
 pub(crate) type PDAState = usize;
 
 #[derive(Debug, Default, Clone)]
@@ -41,7 +40,8 @@ impl From<CFG> for PDA {
         let mut pda = PDA::default();
 
         pda.stack.push(StackAlphabet::EOF);
-        pda.stack.push(StackAlphabet::Symbol("S".into()));
+        pda.stack
+            .push(StackAlphabet::Symbol(Token::Variable("S".into())));
 
         let default_state = 0;
         pda.states.insert(default_state);
@@ -60,7 +60,7 @@ impl From<CFG> for PDA {
         }
 
         for variable in variables {
-            if let Some(rules) = cfg.productions.get(&Token::Variable(variable.clone())) {
+            if let Some(rules) = cfg.productions.get(&variable) {
                 for rule in rules {
                     match rule {
                         crate::productionrule::ProductionRule::Sequence(sequence) => {
@@ -84,7 +84,7 @@ impl From<CFG> for PDA {
                                     current_state,
                                     StackAlphabet::Epsilon,
                                     StackAlphabet::Epsilon,
-                                    StackAlphabet::Symbol(symb.get_inner()),
+                                    StackAlphabet::Symbol(symb),
                                     next_state,
                                 );
 
@@ -96,7 +96,7 @@ impl From<CFG> for PDA {
                                 current_state,
                                 StackAlphabet::Epsilon,
                                 StackAlphabet::Epsilon,
-                                StackAlphabet::Symbol(seq[seq.len() - 1].get_inner()),
+                                StackAlphabet::Symbol(seq[seq.len() - 1].clone()),
                                 default_state,
                             )
                         }

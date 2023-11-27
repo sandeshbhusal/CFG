@@ -2,7 +2,6 @@
 TC=$1
 echo "Testcase $1"
 
-echo "TC1"
 echo "Expected"
 cat ./TC4/tests/a$1.txt
 
