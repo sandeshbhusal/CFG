@@ -61,7 +61,7 @@ impl<'a> PDAConfiguration<'a> {
                     }
                     crate::token::Token::Variable(_) => {
                         // Pop the variable from the top of stack.
-                        println!("{}", copy.produced.clone());
+                        // println!("{}", copy.produced.clone());
                         copy.pda.stack.pop();
                         // Copy derived a variable at this point. Bound is decremented.
                         copy.bound -= 1;
@@ -70,16 +70,13 @@ impl<'a> PDAConfiguration<'a> {
             } else {
                 return false;
             }
+        } else if StackAlphabet::EOF == pop {
+            copy.pda.stack.pop();
         }
 
         // Push if there's anything to push.
         if let StackAlphabet::Symbol(_) = push.clone() {
             copy.pda.stack.push(push);
-        }
-
-        // Pop epsilon if it should be popped.
-        if StackAlphabet::EOF == pop {
-            copy.pda.stack.pop();
         }
 
         copy.state = current_state;
