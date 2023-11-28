@@ -1,3 +1,5 @@
+use log::debug;
+
 use crate::{
     pda::{PDAState, StackAlphabet, PDA},
     token::Token,
@@ -23,108 +25,102 @@ impl<'a> PDAConfiguration<'a> {
         }
     }
 
-    pub(crate) fn run_copy(
-        &self,
-        push: StackAlphabet,
-        pop: StackAlphabet,
-        read: StackAlphabet,
-        current_state: PDAState,
-    ) -> bool {
-        let mut copy = PDAConfiguration::with_pda(
-            self.pda.clone(),
-            self.input,
-            self.bound,
-            self.produced.clone(),
-        );
-
-        // Pop before push
-        if let StackAlphabet::Symbol(s) = pop.clone() {
-            if StackAlphabet::Symbol(s.clone()) == copy.pda.get_stack_top() {
-                match s {
-                    crate::token::Token::Terminal(_) => {
-                        // Pop the terminal from the input string as well as top of stack.
-                        copy.pda.stack.pop();
-                        // Make sure there is input string to be read here.
-                        if copy.input.len() == 0 {
-                            return false;
-                        }
-                        // Make sure we read what was required to be read.
-                        if read == StackAlphabet::Symbol(Token::Terminal((&copy.input[..1]).into()))
-                        {
-                            copy.produced +=
-                                copy.input.chars().next().unwrap().to_string().as_str();
-                            copy.input = &copy.input[1..];
-                        } else {
-                            // Read string does not match the transition read symbol.
-                            return false;
-                        }
-                    }
-                    crate::token::Token::Variable(_) => {
-                        // Pop the variable from the top of stack.
-                        // println!("{}", copy.produced.clone());
-                        copy.pda.stack.pop();
-                        // Copy derived a variable at this point. Bound is decremented.
-                        copy.bound -= 1;
-                    }
-                }
-            } else {
-                return false;
-            }
-        } else if StackAlphabet::EOF == pop {
-            copy.pda.stack.pop();
-        }
-
-        // Push if there's anything to push.
-        if let StackAlphabet::Symbol(_) = push.clone() {
-            copy.pda.stack.push(push);
-        }
-
-        copy.state = current_state;
-        return copy.trace();
-    }
-
     pub fn trace(&mut self) -> bool {
-        // Check bound, base case.
+        // To terminate, we MUST exhaust the entire input.
+        // we also terminate when no match happens within "X" variable expansions.
         if self.bound <= 0 {
             // Check input should be EOF.
-            if self.input.len() == 0
-                && self
-                    .pda
-                    .ep_reachable(self.state)
-                    .contains(&self.pda.final_state)
-            {
+            if self.input.len() == 0 && self.state == self.pda.final_state {
                 log::trace!("Input string finished. In final state (or reachable)");
-                true
+                return true;
             } else {
                 log::trace!("Input string finished. Still not in final state.");
-                false
+                return false;
             }
-        } else {
-            // Trace this input.
-            // Check what are the reachable states from the current state
-            if let Some(transitions_here) = self.pda.table.get(&self.state) {
-                // follow each transition.
-                for ((read_char, pop_from_stack), possible_next) in transitions_here.iter() {
-                    for (push_to_stack, next_state) in possible_next.iter() {
-                        if self.run_copy(
-                            push_to_stack.to_owned(),
-                            pop_from_stack.clone(),
-                            read_char.clone(),
-                            *next_state,
-                        ) {
-                            return true;
+        }
+
+        // Otherwise, generate a new transition following all transitions here.
+        if let Some(transitions) = self.pda.table.get(&self.state) {
+            for ((read, pop), action) in transitions {
+                for (stack_push, next_state) in action {
+                    // dbg!(&read, &pop, &stack_push, &next_state);
+                    // Generate a new trace from here.
+                    let mut copy = self.clone();
+
+                    // Do the popping first.
+                    match pop {
+                        crate::pda::StackAlphabet::Epsilon => {
+                            // Nothing to do while popping epsilon.
+                        }
+                        crate::pda::StackAlphabet::Symbol(token) => {
+                            match token {
+                                crate::token::Token::Terminal(terminal) => {
+                                    // To pop a terminal, we need to read the same terminal.
+                                    // make sure readable string is present.
+                                    if copy.input.len() == 0 {
+                                        continue;
+                                    }
+
+                                    // Ensure the character is at TOS.
+                                    if &copy.pda.get_stack_top() != pop {
+                                        continue;
+                                    }
+
+                                    // make sure the read command and input's first chars match.
+                                    if &StackAlphabet::Symbol(Token::Terminal(terminal.into()))
+                                        != read
+                                    {
+                                        continue;
+                                    }
+
+                                    // then move the input one char to right, and pop the terminal.
+                                    copy.input = &copy.input[1..];
+                                    debug!("pop {}", terminal);
+                                    copy.pda.stack.pop();
+                                }
+                                crate::token::Token::Variable(variable) => {
+                                    // Ensure the variable is on the TOS.
+                                    if &copy.pda.get_stack_top() != pop {
+                                        continue;
+                                    }
+
+                                    // Variable is popped means bound decreases.
+                                    copy.bound -= 1;
+                                    // pop the variable out.
+                                    debug!("pop {}", variable);
+                                    copy.pda.stack.pop();
+                                }
+                            }
+                        }
+                        crate::pda::StackAlphabet::EOF => {
+                            // Pop the EOF from the stack. Nothing to do here.
+                            copy.pda.stack.pop();
                         }
                     }
-                }
 
-                return false;
-            } else {
-                // No more transitions on this state. Check if final reachable, otherwise, return false.
-                self.pda
-                    .ep_reachable(self.state)
-                    .contains(&self.pda.final_state)
-                    && self.input.len() == 0
+                    for symbol in stack_push {
+                        match symbol {
+                            StackAlphabet::Symbol(t) => {
+                                debug!("push {}", t);
+                                copy.pda.stack.push(symbol.clone());
+                            }
+                            _ => {
+                                panic!("Can never happen")
+                            }
+                        }
+                    }
+
+                    copy.state = next_state.clone();
+
+                    if copy.trace() {
+                        return true;
+                    }
+                }
             }
+            return false;
+        } else {
+            // The PDA reached to final state without reading the entire string. This condition should return false.
+            return false;
         }
     }
 }

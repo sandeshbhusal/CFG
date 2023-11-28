@@ -31,8 +31,10 @@ pub struct PDA {
     pub(crate) states: HashSet<PDAState>,
     pub(crate) start_state: PDAState,
     pub(crate) final_state: PDAState,
-    pub(crate) table:
-        HashMap<PDAState, HashMap<(StackAlphabet, StackAlphabet), Vec<(StackAlphabet, PDAState)>>>,
+    pub(crate) table: HashMap<
+        PDAState,
+        HashMap<(StackAlphabet, StackAlphabet), Vec<(Vec<StackAlphabet>, PDAState)>>,
+    >,
 }
 
 impl From<CFG> for PDA {
@@ -54,7 +56,7 @@ impl From<CFG> for PDA {
                 default_state,
                 StackAlphabet::Symbol(terminal.clone()),
                 StackAlphabet::Symbol(terminal.clone()),
-                StackAlphabet::Epsilon,
+                vec![],
                 default_state,
             );
         }
@@ -64,48 +66,25 @@ impl From<CFG> for PDA {
                 for rule in rules {
                     match rule {
                         crate::productionrule::ProductionRule::Sequence(sequence) => {
-                            let mut current_state = pda.gen_new_state_id();
+                            let sequence = sequence
+                                .iter()
+                                .map(|k| StackAlphabet::Symbol(k.clone()))
+                                .collect();
+
                             pda.add_transition(
                                 default_state,
                                 StackAlphabet::Epsilon,
                                 StackAlphabet::Symbol(variable.clone()),
-                                StackAlphabet::Epsilon,
-                                current_state,
-                            );
-
-                            let mut seq = sequence.clone();
-                            seq.reverse();
-
-                            for symb_index in 0..(seq.len() - 1) {
-                                let symb = seq[symb_index].clone();
-                                let next_state = pda.gen_new_state_id();
-
-                                pda.add_transition(
-                                    current_state,
-                                    StackAlphabet::Epsilon,
-                                    StackAlphabet::Epsilon,
-                                    StackAlphabet::Symbol(symb),
-                                    next_state,
-                                );
-
-                                pda.states.insert(next_state);
-                                current_state = next_state;
-                            }
-
-                            pda.add_transition(
-                                current_state,
-                                StackAlphabet::Epsilon,
-                                StackAlphabet::Epsilon,
-                                StackAlphabet::Symbol(seq[seq.len() - 1].clone()),
+                                sequence,
                                 default_state,
-                            )
+                            );
                         }
                         crate::productionrule::ProductionRule::Empty => {
                             pda.add_transition(
                                 default_state,
                                 StackAlphabet::Epsilon,
                                 StackAlphabet::Symbol(variable.clone()),
-                                StackAlphabet::Epsilon,
+                                vec![],
                                 default_state,
                             );
                         }
@@ -122,10 +101,10 @@ impl From<CFG> for PDA {
         pda.start_state = 0;
         let final_state = pda.gen_new_state_id();
         pda.add_transition(
-            0,
+            default_state,
             StackAlphabet::Epsilon,
             StackAlphabet::EOF,
-            StackAlphabet::Epsilon,
+            vec![],
             final_state,
         );
 
@@ -139,15 +118,15 @@ impl PDA {
     fn add_transition(
         &mut self,
         from_state: PDAState,
-        read_string: StackAlphabet,
-        stack_top: StackAlphabet,
-        stack_write: StackAlphabet,
+        read: StackAlphabet,
+        pop: StackAlphabet,
+        push: Vec<StackAlphabet>,
         to_state: PDAState,
     ) {
         // Get the table for the start state.
         let transitions = self.table.entry(from_state).or_default();
-        let transitions_entry = transitions.entry((read_string, stack_top)).or_default();
-        transitions_entry.push((stack_write, to_state));
+        let transitions_entry = transitions.entry((read, pop)).or_default();
+        transitions_entry.push((push, to_state));
     }
 
     fn gen_new_state_id(&mut self) -> PDAState {
@@ -159,33 +138,6 @@ impl PDA {
 
     pub(crate) fn get_stack_top(&self) -> StackAlphabet {
         return self.stack[self.stack.len() - 1].clone();
-    }
-
-    pub(crate) fn ep_reachable(&self, state: PDAState) -> Vec<PDAState> {
-        let mut rval = HashSet::new();
-
-        rval.insert(state);
-        let mut stack = vec![state];
-
-        while let Some(state) = stack.pop() {
-            if let Some(transitions) = self.table.get(&state) {
-                // There are some transitions for this state. Check if any of them have
-                // ep-read and ep-tos.
-                if let Some(possible) =
-                    transitions.get(&(StackAlphabet::Epsilon, StackAlphabet::Epsilon))
-                {
-                    let states = possible.iter().map(|t| t.1).collect::<Vec<_>>();
-                    for state in states {
-                        if !rval.contains(&state) {
-                            stack.push(state);
-                            rval.insert(state);
-                        }
-                    }
-                }
-            }
-        }
-
-        rval.into_iter().collect::<Vec<PDAState>>()
     }
 }
 
