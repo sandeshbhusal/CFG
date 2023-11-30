@@ -79,28 +79,28 @@ impl<'a> PDAConfiguration<'a> {
     }
 
     pub fn trace(&mut self) -> bool {
+        let check_accept = || self.input.len() == 0 && self.state == self.pda.final_state;
+
         // Check bound, base case.
         match self.bound <= 0 {
-            true => self.input.len() == 0 && self.state == self.pda.final_state,
+            true => check_accept(),
             false => self
                 .pda
                 .table
                 .get(&self.state)
-                .map(|transitions_here| {
-                    transitions_here.iter().any(
-                        |((read_char, pop_from_stack), possible_actions)| {
-                            possible_actions.iter().any(|(push_to_stack, next_state)| {
-                                self.run_copy(
-                                    push_to_stack.clone(),
-                                    pop_from_stack.clone(),
-                                    read_char.clone(),
-                                    next_state.to_owned(),
-                                )
-                            })
-                        },
-                    )
+                .map(|state_transitions| {
+                    state_transitions.iter().any(|((read, pop), actions)| {
+                        actions.iter().any(|(push, next_state)| {
+                            self.run_copy(
+                                push.clone(),
+                                pop.clone(),
+                                read.clone(),
+                                next_state.to_owned(),
+                            )
+                        })
+                    })
                 })
-                .unwrap_or(self.state == self.pda.final_state && self.input.len() == 0),
+                .unwrap_or(check_accept()),
         }
     }
 }
