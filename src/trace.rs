@@ -54,7 +54,7 @@ impl<'a> PDAConfiguration<'a> {
             }
 
             // On EOF pop, we simply pop it.
-            StackAlphabet::EOF => {
+            StackAlphabet::EOF if copy.pda.get_stack_top() == pop => {
                 log::trace!("pop $");
                 copy.pda.stack.pop();
             }
