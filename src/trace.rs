@@ -92,31 +92,24 @@ impl<'a> PDAConfiguration<'a> {
         } else {
             // Trace this input.
             // Check what are the reachable states from the current state
-            if let Some(transitions_here) = self.pda.table.get(&self.state) {
-                // follow each transition.
-                for ((read_char, pop_from_stack), possible_next) in transitions_here.iter() {
-                    for (push_to_stack, next_state) in possible_next.iter() {
-                        if self.run_copy(
-                            push_to_stack.to_owned(),
-                            pop_from_stack.clone(),
-                            read_char.clone(),
-                            *next_state,
-                        ) {
-                            return true;
-                        }
-                    }
-                }
-
-                return false;
-            } else {
-                // No more transitions on this state. Check if final reachable, otherwise, return false.
-                log::trace!(
-                    "No transitions left, remaining input length = {} and current state = {}.",
-                    self.input.len(),
-                    self.state
-                );
-                self.state == self.pda.final_state && self.input.len() == 0
-            }
+            self.pda
+                .table
+                .get(&self.state)
+                .map(|transitions_here| {
+                    transitions_here
+                        .iter()
+                        .any(|((read_char, pop_from_stack), possible_actions)| {
+                            possible_actions.iter().any(|(push_to_stack, next_state)| {
+                                self.run_copy(
+                                    push_to_stack.clone(),
+                                    pop_from_stack.clone(),
+                                    read_char.clone(),
+                                    next_state.to_owned(),
+                                )
+                            })
+                        })
+                })
+                .unwrap_or(self.state == self.pda.final_state && self.input.len() == 0)
         }
     }
 }
