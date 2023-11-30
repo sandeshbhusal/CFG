@@ -80,25 +80,15 @@ impl<'a> PDAConfiguration<'a> {
 
     pub fn trace(&mut self) -> bool {
         // Check bound, base case.
-        if self.bound <= 0 {
-            // Check input should be EOF.
-            if self.input.len() == 0 && self.state == self.pda.final_state {
-                log::trace!("Input string finished. In final state (or reachable)");
-                true
-            } else {
-                log::trace!("Input string finished. Still not in final state.");
-                false
-            }
-        } else {
-            // Trace this input.
-            // Check what are the reachable states from the current state
-            self.pda
+        match self.bound <= 0 {
+            true => self.input.len() == 0 && self.state == self.pda.final_state,
+            false => self
+                .pda
                 .table
                 .get(&self.state)
                 .map(|transitions_here| {
-                    transitions_here
-                        .iter()
-                        .any(|((read_char, pop_from_stack), possible_actions)| {
+                    transitions_here.iter().any(
+                        |((read_char, pop_from_stack), possible_actions)| {
                             possible_actions.iter().any(|(push_to_stack, next_state)| {
                                 self.run_copy(
                                     push_to_stack.clone(),
@@ -107,9 +97,10 @@ impl<'a> PDAConfiguration<'a> {
                                     next_state.to_owned(),
                                 )
                             })
-                        })
+                        },
+                    )
                 })
-                .unwrap_or(self.state == self.pda.final_state && self.input.len() == 0)
+                .unwrap_or(self.state == self.pda.final_state && self.input.len() == 0),
         }
     }
 }
