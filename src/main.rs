@@ -3,7 +3,6 @@
 use anyhow::Result;
 use cfg::cfg::CFG;
 use cfg::pda::PDA;
-use cfg::trace;
 use clap::Parser;
 
 #[derive(Debug, Parser)]
@@ -37,11 +36,8 @@ fn main() -> Result<()> {
     // TODO: Calculate the value of bound we have to parse within.
 
     let cfg = cfg_def.parse::<CFG>().unwrap();
-
-    let pda = PDA::from(cfg);
-    // println!("{}", pda);
-    let mut tracer = trace::PDAConfiguration::with_pda(pda, &input_string, 100);
-    let ans = tracer.trace();
+    let mut tracer = PDA::with_cfg(&cfg, 100);
+    let ans = tracer.trace(input_string.as_str());
 
     if ans {
         println!("yes");

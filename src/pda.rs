@@ -1,171 +1,94 @@
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::{Display, Write},
-};
+use crate::{cfg::CFG, token::Token};
 
-use crate::{cfg::CFG, token::Token, trace};
-
-#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
-pub(crate) enum StackAlphabet {
+#[derive(Default, Debug, PartialEq, Clone)]
+enum StackAlphabet {
     #[default]
-    Epsilon,
-    Symbol(Token),
     EOF,
+    Token(Token),
 }
 
-impl Display for StackAlphabet {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            StackAlphabet::Epsilon => f.write_char('e'),
-            StackAlphabet::Symbol(s) => f.write_str(&s.get_inner()),
-            StackAlphabet::EOF => f.write_char('$'),
-        }
-    }
+#[derive(Debug, Clone)]
+pub struct PDA<'a> {
+    cfg: &'a CFG,
+    stack: Vec<StackAlphabet>,
+    budget: usize,
 }
 
-pub(crate) type PDAState = usize;
-
-#[derive(Debug, Default, Clone)]
-pub struct PDA {
-    pub(crate) stack: Vec<StackAlphabet>,
-    pub(crate) states: HashSet<PDAState>,
-    pub(crate) start_state: PDAState,
-    pub(crate) final_state: PDAState,
-    pub(crate) table: HashMap<
-        PDAState,
-        HashMap<(StackAlphabet, StackAlphabet), Vec<(Vec<StackAlphabet>, PDAState)>>,
-    >,
-}
-
-impl From<CFG> for PDA {
-    fn from(cfg: CFG) -> Self {
-        let mut pda = PDA::default();
-
-        pda.stack.push(StackAlphabet::EOF);
-        pda.stack
-            .push(StackAlphabet::Symbol(Token::Variable("S".into())));
-
-        let default_state = 0;
-        pda.states.insert(default_state);
-
-        let variables = cfg.variables.clone();
-        let terminals = cfg.alphabet.clone();
-
-        for terminal in terminals {
-            pda.add_transition(
-                default_state,
-                StackAlphabet::Symbol(terminal.clone()),
-                StackAlphabet::Symbol(terminal.clone()),
-                vec![],
-                default_state,
-            );
-        }
-
-        for variable in variables {
-            if let Some(rules) = cfg.productions.get(&variable) {
-                for rule in rules {
-                    match rule {
-                        crate::productionrule::ProductionRule::Sequence(sequence) => {
-                            let mut sequence = sequence.clone();
-                            sequence.reverse();
-                            pda.add_transition(
-                                default_state,
-                                StackAlphabet::Epsilon,
-                                StackAlphabet::Symbol(variable.clone()),
-                                sequence
-                                    .iter()
-                                    .map(|token| StackAlphabet::Symbol(token.clone()))
-                                    .collect(),
-                                default_state,
-                            )
-                        }
-                        crate::productionrule::ProductionRule::Empty => {
-                            pda.add_transition(
-                                default_state,
-                                StackAlphabet::Epsilon,
-                                StackAlphabet::Symbol(variable.clone()),
-                                vec![],
-                                default_state,
-                            );
-                        }
-                    }
-                }
-            } else {
-                log::warn!(
-                    "The variable {} does not have any production rules!",
-                    variable
-                );
-            }
-        }
-
-        pda.start_state = 0;
-        let final_state = pda.gen_new_state_id();
-        pda.add_transition(
-            0,
-            StackAlphabet::Epsilon,
-            StackAlphabet::EOF,
-            vec![],
-            final_state,
-        );
-
-        pda.final_state = final_state;
-
-        pda
-    }
-}
-
-impl PDA {
-    pub fn trace_string(&self, input: &str, bound: usize) -> bool {
-        let mut pda_tracer = trace::PDAConfiguration::with_pda(self.clone(), input, bound);
-        pda_tracer.trace()
-    }
-    fn add_transition(
-        &mut self,
-        from_state: PDAState,
-        read_string: StackAlphabet,
-        stack_top: StackAlphabet,
-        stack_write: Vec<StackAlphabet>,
-        to_state: PDAState,
-    ) {
-        // Get the table for the start state.
-        let transitions = self.table.entry(from_state).or_default();
-        let transitions_entry = transitions.entry((read_string, stack_top)).or_default();
-        transitions_entry.push((stack_write, to_state));
-    }
-
-    fn gen_new_state_id(&mut self) -> PDAState {
-        let new_state_id = self.states.len();
-        self.states.insert(new_state_id);
-
-        new_state_id
-    }
-
-    pub(crate) fn get_stack_top(&self) -> StackAlphabet {
-        return self.stack[self.stack.len() - 1].clone();
-    }
-}
-
-impl Display for PDA {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let _ = {
-            f.write_str("Pushdown Automata Description:\n")?;
-            f.write_fmt(format_args!("States: {:?}\n", self.states))?;
-            f.write_fmt(format_args!("Start state: {:?}\n", self.start_state))?;
-            f.write_fmt(format_args!("Final state: {:?}\n\n", self.final_state))?;
-
-            for entry in self.table.clone() {
-                f.write_fmt(format_args!("State: {}\n", entry.0))?;
-                f.write_fmt(format_args!("------------------\n"))?;
-                for entry in entry.1 {
-                    f.write_fmt(format_args!(
-                        "Read: {}\t Stack Top: {}\t Transition to: {:?}\n",
-                        entry.0 .0, entry.0 .1, entry.1
-                    ))?;
-                }
-                f.write_char('\n')?;
-            }
+impl<'a> PDA<'a> {
+    pub fn with_cfg(cfg: &'a CFG, budget: usize) -> Self {
+        let mut rval = Self {
+            cfg,
+            budget,
+            stack: vec![],
         };
 
-        Ok(())
+        rval.stack.push(StackAlphabet::EOF);
+        rval.stack
+            .push(StackAlphabet::Token(Token::Variable("S".into())));
+        rval
+    }
+
+    pub fn trace(&mut self, input: &str) -> bool {
+        log::trace!("the input is '{}'", input);
+        if self.budget == 0 {
+            // Budget exhausted.
+            return input.len() == 0 && self.stack.is_empty();
+        } else {
+            // Get the first symbol on the stack.
+            let popped = self.stack.pop();
+            match popped {
+                Some(StackAlphabet::Token(Token::Terminal(t))) if input.len() > 0 => {
+                    log::trace!("pop {}", t);
+                    // if t matches input string initial char, then proceed to simulate.
+                    if &input[..1] == t.as_str() {
+                        let input = &input[1..];
+                        self.trace(input)
+                    } else {
+                        log::debug!("Stack top {} and input string {} do not match", t, input);
+                        false
+                    }
+                }
+                Some(StackAlphabet::Token(Token::Variable(t))) => {
+                    log::trace!("pop {}", t);
+                    // if t matches a variable on top of stack, it is popped,
+                    // and all possible expansions of the variable are tried one after another.
+                    let productions = self
+                        .cfg
+                        .productions
+                        .get(&Token::Variable(t.clone()))
+                        .expect("Variable does not have productions?");
+
+                    for production in productions {
+                        log::debug!("Production rule: {:?}", production);
+                        let mut copy = self.clone();
+                        copy.budget -= 1;
+                        match production {
+                            crate::productionrule::ProductionRule::Sequence(seq) => {
+                                let mut r = seq.clone();
+                                r.reverse();
+                                for symb in r {
+                                    log::trace!("push {}", symb);
+                                    copy.stack.push(StackAlphabet::Token(symb));
+                                }
+                            }
+                            _ => {}
+                        }
+
+                        if copy.trace(input) {
+                            return true;
+                        }
+                    }
+
+                    log::trace!("No production rule for this variable can derive the string.");
+                    false
+                }
+                Some(StackAlphabet::EOF) => {
+                    // If popping a EOF, check if input is finished.
+                    log::trace!("pop $");
+                    input.len() == 0
+                }
+                _ => false,
+            }
+        }
     }
 }

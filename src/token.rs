@@ -20,20 +20,3 @@ impl Display for Token {
         Ok(())
     }
 }
-
-impl Token {
-    pub fn is_variable(&self) -> bool {
-        matches!(self, Token::Variable(_))
-    }
-
-    pub fn is_terminal(&self) -> bool {
-        matches!(self, Token::Terminal(_))
-    }
-
-    pub fn get_inner(&self) -> String { 
-        match self {
-            Token::Terminal(s) => s.clone(),
-            Token::Variable(s) => s.clone(),
-        }
-    }
-}
