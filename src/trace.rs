@@ -24,7 +24,7 @@ impl<'a> PDAConfiguration<'a> {
     #[inline]
     pub(crate) fn run_copy(
         &self,
-        push: StackAlphabet,
+        push: Vec<StackAlphabet>,
         pop: StackAlphabet,
         read: StackAlphabet,
         current_state: PDAState,
@@ -51,10 +51,15 @@ impl<'a> PDAConfiguration<'a> {
                 log::trace!("pop {}", v);
                 copy.pda.stack.pop();
                 copy.bound -= 1;
+
+                // Push the stuff in reverse order.
+                for symb in push {
+                    copy.pda.stack.push(symb);
+                }
             }
 
             // On EOF pop, we simply pop it.
-            StackAlphabet::EOF if copy.pda.get_stack_top() == pop => {
+            StackAlphabet::EOF => {
                 log::trace!("pop $");
                 copy.pda.stack.pop();
             }
@@ -67,12 +72,6 @@ impl<'a> PDAConfiguration<'a> {
                 return false;
             }
         };
-
-        // Push if there's anything to push.
-        if let StackAlphabet::Symbol(s) = push.clone() {
-            log::trace!("push {}", s);
-            copy.pda.stack.push(push);
-        }
 
         copy.state = current_state;
         return copy.trace();
