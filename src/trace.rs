@@ -33,25 +33,28 @@ impl<'a> PDAConfiguration<'a> {
         match pop {
             // On terminal: check stack top + begin of input string
             // and pop the input string front and the stack top.
-            StackAlphabet::Symbol(Token::Terminal(_))
+            StackAlphabet::Symbol(Token::Terminal(t))
                 if copy.pda.get_stack_top() == pop
                     && copy.input.len() > 0
                     && read
                         == StackAlphabet::Symbol(Token::Terminal(copy.input[..1].to_string())) =>
             {
+                log::trace!("pop {}", t);
                 copy.pda.stack.pop();
                 copy.input = &copy.input[1..];
             }
 
             // On variable: pop the variable and decrement bound,
             // as we used up a unit of production budget.
-            StackAlphabet::Symbol(Token::Variable(_)) if copy.pda.get_stack_top() == pop => {
+            StackAlphabet::Symbol(Token::Variable(v)) if copy.pda.get_stack_top() == pop => {
+                log::trace!("pop {}", v);
                 copy.pda.stack.pop();
                 copy.bound -= 1;
             }
 
             // On EOF pop, we simply pop it.
             StackAlphabet::EOF => {
+                log::trace!("pop $");
                 copy.pda.stack.pop();
             }
 
@@ -65,7 +68,8 @@ impl<'a> PDAConfiguration<'a> {
         };
 
         // Push if there's anything to push.
-        if let StackAlphabet::Symbol(_) = push.clone() {
+        if let StackAlphabet::Symbol(s) = push.clone() {
+            log::trace!("push {}", s);
             copy.pda.stack.push(push);
         }
 
