@@ -21,6 +21,7 @@ impl<'a> PDAConfiguration<'a> {
         }
     }
 
+    #[inline]
     pub(crate) fn run_copy(
         &self,
         push: StackAlphabet,
@@ -60,7 +61,7 @@ impl<'a> PDAConfiguration<'a> {
 
             // On epsilon, do nothing.
             StackAlphabet::Epsilon => {}
-            
+
             // If pop does not match any condition, return false early.
             _ => {
                 return false;
@@ -81,12 +82,7 @@ impl<'a> PDAConfiguration<'a> {
         // Check bound, base case.
         if self.bound <= 0 {
             // Check input should be EOF.
-            if self.input.len() == 0
-                && self
-                    .pda
-                    .ep_reachable(self.state)
-                    .contains(&self.pda.final_state)
-            {
+            if self.input.len() == 0 && self.state == self.pda.final_state {
                 log::trace!("Input string finished. In final state (or reachable)");
                 true
             } else {
@@ -114,10 +110,12 @@ impl<'a> PDAConfiguration<'a> {
                 return false;
             } else {
                 // No more transitions on this state. Check if final reachable, otherwise, return false.
-                self.pda
-                    .ep_reachable(self.state)
-                    .contains(&self.pda.final_state)
-                    && self.input.len() == 0
+                log::trace!(
+                    "No transitions left, remaining input length = {} and current state = {}.",
+                    self.input.len(),
+                    self.state
+                );
+                self.state == self.pda.final_state && self.input.len() == 0
             }
         }
     }

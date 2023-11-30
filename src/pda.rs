@@ -164,33 +164,6 @@ impl PDA {
     pub(crate) fn get_stack_top(&self) -> StackAlphabet {
         return self.stack[self.stack.len() - 1].clone();
     }
-
-    pub(crate) fn ep_reachable(&self, state: PDAState) -> Vec<PDAState> {
-        let mut rval = HashSet::new();
-
-        rval.insert(state);
-        let mut stack = vec![state];
-
-        while let Some(state) = stack.pop() {
-            if let Some(transitions) = self.table.get(&state) {
-                // There are some transitions for this state. Check if any of them have
-                // ep-read and ep-tos.
-                if let Some(possible) =
-                    transitions.get(&(StackAlphabet::Epsilon, StackAlphabet::Epsilon))
-                {
-                    let states = possible.iter().map(|t| t.1).collect::<Vec<_>>();
-                    for state in states {
-                        if !rval.contains(&state) {
-                            stack.push(state);
-                            rval.insert(state);
-                        }
-                    }
-                }
-            }
-        }
-
-        rval.into_iter().collect::<Vec<PDAState>>()
-    }
 }
 
 impl Display for PDA {
