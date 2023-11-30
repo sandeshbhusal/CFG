@@ -9,5 +9,5 @@ echo ""
 
 echo "Got"
 for input in {1..5}; do
-    ./target/release/CFGDeriver --bound-type 2 --cfg-file ./TC4/tests/tc$1.txt --string-file ./TC4/tests/in$1_$input.txt
+    ./target/debug/CFGDeriver --bound-type 2 --cfg-file ./TC4/tests/tc$1.txt --string-file ./TC4/tests/in$1_$input.txt
 done

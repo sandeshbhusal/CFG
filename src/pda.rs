@@ -3,7 +3,7 @@ use std::{
     fmt::{Display, Write},
 };
 
-use crate::{cfg::CFG, token::Token};
+use crate::{cfg::CFG, token::Token, trace};
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum StackAlphabet {
@@ -136,6 +136,10 @@ impl From<CFG> for PDA {
 }
 
 impl PDA {
+    pub fn trace_string(&self, input: &str, bound: usize) -> bool {
+        let mut pda_tracer = trace::PDAConfiguration::with_pda(self.clone(), input, bound);
+        pda_tracer.trace()
+    }
     fn add_transition(
         &mut self,
         from_state: PDAState,

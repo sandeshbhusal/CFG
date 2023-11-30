@@ -40,7 +40,7 @@ fn main() -> Result<()> {
 
     let pda = PDA::from(cfg);
     // println!("{}", pda);
-    let mut tracer = trace::PDAConfiguration::with_pda(pda, &input_string, 100, String::new());
+    let mut tracer = trace::PDAConfiguration::with_pda(pda, &input_string, 100);
     let ans = tracer.trace();
 
     if ans {

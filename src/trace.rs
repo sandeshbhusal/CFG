@@ -9,17 +9,15 @@ pub struct PDAConfiguration<'a> {
     state: PDAState,
     input: &'a str,
     bound: usize,
-    produced: String,
 }
 
 impl<'a> PDAConfiguration<'a> {
-    pub fn with_pda(pda: PDA, input_string: &'a str, bound: usize, produced: String) -> Self {
+    pub fn with_pda(pda: PDA, input_string: &'a str, bound: usize) -> Self {
         Self {
             pda: pda.clone(),
             state: pda.start_state,
             input: input_string,
             bound,
-            produced,
         }
     }
 
@@ -30,49 +28,41 @@ impl<'a> PDAConfiguration<'a> {
         read: StackAlphabet,
         current_state: PDAState,
     ) -> bool {
-        let mut copy = PDAConfiguration::with_pda(
-            self.pda.clone(),
-            self.input,
-            self.bound,
-            self.produced.clone(),
-        );
+        let mut copy = PDAConfiguration::with_pda(self.pda.clone(), self.input, self.bound);
 
-        // Pop before push
-        if let StackAlphabet::Symbol(s) = pop.clone() {
-            if StackAlphabet::Symbol(s.clone()) == copy.pda.get_stack_top() {
-                match s {
-                    crate::token::Token::Terminal(_) => {
-                        // Pop the terminal from the input string as well as top of stack.
-                        copy.pda.stack.pop();
-                        // Make sure there is input string to be read here.
-                        if copy.input.len() == 0 {
-                            return false;
-                        }
-                        // Make sure we read what was required to be read.
-                        if read == StackAlphabet::Symbol(Token::Terminal((&copy.input[..1]).into()))
-                        {
-                            copy.produced +=
-                                copy.input.chars().next().unwrap().to_string().as_str();
-                            copy.input = &copy.input[1..];
-                        } else {
-                            // Read string does not match the transition read symbol.
-                            return false;
-                        }
-                    }
-                    crate::token::Token::Variable(_) => {
-                        // Pop the variable from the top of stack.
-                        // println!("{}", copy.produced.clone());
-                        copy.pda.stack.pop();
-                        // Copy derived a variable at this point. Bound is decremented.
-                        copy.bound -= 1;
-                    }
-                }
-            } else {
+        match pop {
+            // On terminal: check stack top + begin of input string
+            // and pop the input string front and the stack top.
+            StackAlphabet::Symbol(Token::Terminal(_))
+                if copy.pda.get_stack_top() == pop
+                    && copy.input.len() > 0
+                    && read
+                        == StackAlphabet::Symbol(Token::Terminal(copy.input[..1].to_string())) =>
+            {
+                copy.pda.stack.pop();
+                copy.input = &copy.input[1..];
+            }
+
+            // On variable: pop the variable and decrement bound,
+            // as we used up a unit of production budget.
+            StackAlphabet::Symbol(Token::Variable(_)) if copy.pda.get_stack_top() == pop => {
+                copy.pda.stack.pop();
+                copy.bound -= 1;
+            }
+
+            // On EOF pop, we simply pop it.
+            StackAlphabet::EOF => {
+                copy.pda.stack.pop();
+            }
+
+            // On epsilon, do nothing.
+            StackAlphabet::Epsilon => {}
+            
+            // If pop does not match any condition, return false early.
+            _ => {
                 return false;
             }
-        } else if StackAlphabet::EOF == pop {
-            copy.pda.stack.pop();
-        }
+        };
 
         // Push if there's anything to push.
         if let StackAlphabet::Symbol(_) = push.clone() {
