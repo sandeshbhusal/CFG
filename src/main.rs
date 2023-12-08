@@ -2,7 +2,6 @@
 
 use anyhow::Result;
 use cfg::cfg::CFG;
-use cfg::pda::PDA;
 use clap::Parser;
 
 #[derive(Debug, Parser)]
@@ -29,20 +28,27 @@ fn main() -> Result<()> {
     let args = Arguments::parse();
     let cfg_def = std::fs::read_to_string(args.cfg_file)?;
     let input_string = std::fs::read_to_string(args.str_file)?;
-
-    // Replace all "!" with blanks.
     let input_string = input_string.replace("!", "");
 
-    // TODO: Calculate the value of bound we have to parse within.
-
     let cfg = cfg_def.parse::<CFG>().unwrap();
-    let mut tracer = PDA::with_cfg(&cfg, 100);
-    let ans = tracer.trace(input_string.as_str());
+    let bound = match args.bound_type {
+        1 => 100,
+        2 => input_string.len().max(1) as isize,
+        3 => ((2 * input_string.len()).max(1) - 1) as isize,
+        _ => {
+            panic!("Illegal bound passed.")
+        }
+    };
+
+    dbg!(&input_string, &bound);
+
+    let ans = cfg.trace_string(input_string.as_str(), bound);
 
     if ans {
         println!("yes");
     } else {
         println!("no");
     }
+
     Ok(())
 }

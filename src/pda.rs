@@ -11,11 +11,11 @@ enum StackAlphabet {
 pub struct PDA<'a> {
     cfg: &'a CFG,
     stack: Vec<StackAlphabet>,
-    budget: usize,
+    budget: isize,
 }
 
 impl<'a> PDA<'a> {
-    pub fn with_cfg(cfg: &'a CFG, budget: usize) -> Self {
+    pub fn with_cfg(cfg: &'a CFG, budget: isize) -> Self {
         let mut rval = Self {
             cfg,
             budget,
@@ -30,7 +30,7 @@ impl<'a> PDA<'a> {
 
     pub fn trace(&mut self, input: &str) -> bool {
         log::trace!("the input is '{}'", input);
-        if self.budget == 0 {
+        if self.budget < 0 {
             // Budget exhausted.
             return input.len() == 0 && self.stack.is_empty();
         } else {

@@ -1,5 +1,5 @@
 pub mod parser;
 pub mod cfg;
-pub mod pda;
+pub(crate) mod pda;
 pub mod productionrule;
 pub mod token;
