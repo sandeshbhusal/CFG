@@ -34,13 +34,13 @@ fn main() -> Result<()> {
     let bound = match args.bound_type {
         1 => 100,
         2 => input_string.len().max(1) as isize,
-        3 => ((2 * input_string.len()).max(1) - 1) as isize,
+        3 => ((2 * input_string.len()).max(1) - 1).max(1) as isize,
         _ => {
             panic!("Illegal bound passed.")
         }
     };
 
-    dbg!(&input_string, &bound);
+    // dbg!(&input_string, &bound);
 
     let ans = cfg.trace_string(input_string.as_str(), bound);
 
