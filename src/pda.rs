@@ -1,3 +1,4 @@
+#![allow(unused)]
 use crate::{cfg::CFG, token::Token};
 
 #[derive(Default, Debug, PartialEq, Clone)]
@@ -14,6 +15,17 @@ pub struct PDA<'a> {
     budget: isize,
 }
 
+struct Configuration<'b> {
+    pda: PDA<'b>,
+    input: &'b str,
+}
+
+impl<'b> Configuration<'b> {
+    fn from_pda(pda: PDA<'b>, input: &'b str) -> Self {
+        Self { pda: pda, input }
+    }
+}
+
 impl<'a> PDA<'a> {
     pub fn with_cfg(cfg: &'a CFG, budget: isize) -> Self {
         let mut rval = Self {
@@ -26,6 +38,72 @@ impl<'a> PDA<'a> {
         rval.stack
             .push(StackAlphabet::Token(Token::Variable("S".into())));
         rval
+    }
+
+    pub fn trace_bfs(&mut self, input: &str) -> bool {
+        let mut queue = Vec::new();
+        // Generate a queue of simulate-able machines here.
+        queue.push(Configuration::from_pda(self.clone(), input));
+
+        while let Some(mut configuration) = queue.pop() {
+            // Check if configuration is accepting. If so, return immediately.
+            if configuration.pda.budget < 0
+                && configuration.pda.stack.is_empty()
+                && configuration.input.len() == 0
+            {
+                return true;
+            } else {
+                // pop stack of the configuration.
+                match configuration.pda.stack.pop() {
+                    Some(StackAlphabet::EOF) => {
+                        if configuration.input.len() == 0 {
+                            return true;
+                        }
+                    }
+                    Some(StackAlphabet::Token(Token::Terminal(t)))
+                        if configuration.input.len() > 0 =>
+                    {
+                        log::trace!("pop {}", t);
+                        if &configuration.input[..1] == t.as_str() {
+                            configuration.input = &configuration.input[1..];
+                            queue.push(configuration);
+                        }
+                    }
+                    Some(StackAlphabet::Token(Token::Variable(t))) => {
+                        log::debug!("Expand variable {}", t);
+                        let productions = configuration
+                            .pda
+                            .cfg
+                            .productions
+                            .get(&Token::Variable(t.clone()))
+                            .expect(&format!("Expected {} to have productions. Couldn't find any.", t));
+
+                        for production in productions {
+                            log::debug!("Production rule: {:?}", production);
+                            let mut copy = configuration.pda.clone();
+                            copy.budget -= 1;
+                            match production {
+                                crate::productionrule::ProductionRule::Sequence(seq) => {
+                                    let mut r = seq.clone();
+                                    r.reverse();
+                                    for symb in r {
+                                        log::trace!("push {}", symb);
+                                        copy.stack.push(StackAlphabet::Token(symb));
+                                    }
+                                }
+                                crate::productionrule::ProductionRule::Empty => {
+                                    // Do nothing for empty production. Just pop.
+                                }
+                            }
+                            queue.push(Configuration::from_pda(copy, configuration.input));
+                        }
+                    }
+                    _ => (),
+                }
+            }
+        }
+
+        false
     }
 
     pub fn trace(&mut self, input: &str) -> bool {
@@ -50,6 +128,9 @@ impl<'a> PDA<'a> {
                 }
                 Some(StackAlphabet::Token(Token::Variable(t))) => {
                     log::trace!("pop {}", t);
+                    log::debug!("Expand variable {}", t); // This will be used for report by
+                                                          //grepping output and counting
+
                     // if t matches a variable on top of stack, it is popped,
                     // and all possible expansions of the variable are tried one after another.
                     let productions = self

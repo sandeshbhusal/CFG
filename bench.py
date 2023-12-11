@@ -34,11 +34,8 @@ for e in range(1, 4):
             
             cmd = [
                 "./target/release/CFGDeriver",
-                "--bound-type",
                 str(bound),
-                "--cfg-file",
                 f"./TC4/evals/{language}.txt",
-                "--string-file",
                 str(stringfile)
             ]
             # print(' '.join(cmd))

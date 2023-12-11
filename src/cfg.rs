@@ -18,7 +18,18 @@ impl CFG {
     pub fn longest_derivation_length(&self) -> usize {
         self.productions
             .iter()
-            .map(|(_, k)| k.len())
+            .map(|(_, k)| {
+                k.iter()
+                    .map(|r| {
+                        if let ProductionRule::Sequence(s) = r {
+                            s.len()
+                        } else {
+                            0
+                        }
+                    })
+                    .max()
+                    .unwrap_or(0)
+            })
             .max()
             .unwrap_or(0)
     }

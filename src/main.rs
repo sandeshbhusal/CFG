@@ -6,19 +6,8 @@ use clap::Parser;
 
 #[derive(Debug, Parser)]
 struct Arguments {
-    #[clap(short = 'b', long = "bound-type", help = "The bound type to use.")]
     bound_type: u8,
-    #[clap(
-        short = 'f',
-        long = "cfg-file",
-        help = "The file containing the CFG definition."
-    )]
     cfg_file: String,
-    #[clap(
-        short = 's',
-        long = "string-file",
-        help = "The file containing the string to test."
-    )]
     str_file: String,
 }
 
@@ -27,13 +16,16 @@ fn main() -> Result<()> {
 
     let args = Arguments::parse();
     let cfg_def = std::fs::read_to_string(args.cfg_file)?;
-    let input_string = std::fs::read_to_string(args.str_file)?;
+    let input_string = std::fs::read_to_string(args.str_file)?.trim().to_string();
     let input_string = input_string.replace("!", "");
 
     let cfg = cfg_def.parse::<CFG>().unwrap();
     let bound = match args.bound_type {
         1 => 100,
-        2 => input_string.len().max(1) as isize,
+        2 => {
+            let b_h = input_string.len().max(1) as f64;
+            ((b_h - 1.0f64) / (cfg.longest_derivation_length() as f64 - 1.0f64)).ceil() as isize
+        }
         3 => ((2 * input_string.len()).max(1) - 1).max(1) as isize,
         _ => {
             panic!("Illegal bound passed.")
